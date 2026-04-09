@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: openenv-cloudscale_rl
+Version: 0.1.0
+Summary: Cloudscale RL / AutoScaleOps environment for OpenEnv
+Requires-Python: >=3.10
+Requires-Dist: openenv-core[core]>=0.2.1
+Requires-Dist: fastapi>=0.115.0
+Requires-Dist: uvicorn>=0.24.0
+Requires-Dist: pydantic>=2.7.0
+Requires-Dist: numpy>=1.24.0
+Requires-Dist: openai>=1.0.0
+Requires-Dist: python-dotenv>=1.0.1
+Requires-Dist: requests>=2.28.0
+Requires-Dist: torch>=2.11.0

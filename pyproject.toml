@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openenv-cloudscale_rl"
+version = "0.1.0"
+description = "Cloudscale RL / AutoScaleOps environment for OpenEnv"
+requires-python = ">=3.10"
+dependencies = [
+    "openenv-core[core]>=0.2.1",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.24.0",
+    "pydantic>=2.7.0",
+    "numpy>=1.24.0",
+    "openai>=1.0.0",
+    "python-dotenv>=1.0.1",
+    "requests>=2.28.0",
+    "torch>=2.11.0",
+]
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cpu", marker = "sys_platform == 'linux'" },
+  { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.15.9",
+]
+
+[project.scripts]
+server = "server.app:main"
+
+[tool.setuptools]
+include-package-data = true
+packages = ["cloudscale_rl", "cloudscale_rl.server", "cloudscale_rl.training"]
+package-dir = { "cloudscale_rl" = ".", "cloudscale_rl.server" = "server", "cloudscale_rl.training" = "training" }
