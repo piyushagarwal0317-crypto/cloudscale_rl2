@@ -6,6 +6,7 @@ FastAPI application for the CloudScaleRL / AutoScaleOps Environment.
 """
 
 from fastapi import Body, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any
 
 try:
@@ -18,10 +19,30 @@ except Exception as e:
 try:
     from ..models import CloudScaleAction, CloudScaleObservation
     from .cloudscale_rl_environment import CloudScaleEnvironment, SCENARIOS
+    from .event_logger import (
+        fetch_recent_scale_advice_events,
+        firestore_logging_enabled,
+        log_scale_advice_event,
+    )
+    from .gemini_advisor import (
+        GeminiScaleAdviceRequest,
+        GeminiScaleAdviceResponse,
+        request_gemini_scale_advice,
+    )
     from .grader import grade_episode
 except (ModuleNotFoundError, ImportError):
     from models import CloudScaleAction, CloudScaleObservation
     from server.cloudscale_rl_environment import CloudScaleEnvironment, SCENARIOS
+    from server.event_logger import (
+        fetch_recent_scale_advice_events,
+        firestore_logging_enabled,
+        log_scale_advice_event,
+    )
+    from server.gemini_advisor import (
+        GeminiScaleAdviceRequest,
+        GeminiScaleAdviceResponse,
+        request_gemini_scale_advice,
+    )
     from server.grader import grade_episode
 
 
@@ -32,6 +53,14 @@ app = create_app(
     CloudScaleObservation,
     env_name="cloudscale_rl",
     max_concurrent_envs=10,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.get("/tasks")
@@ -61,7 +90,37 @@ async def post_grader(metrics: Dict[str, Any] = Body(...)):
 @app.get("/health")
 async def health():
     """Health check endpoint."""
-    return {"status": "ok", "environment": "cloudscale_rl"}
+    return {
+        "status": "ok",
+        "environment": "cloudscale_rl",
+        "firestore_logging_enabled": firestore_logging_enabled(),
+    }
+
+
+@app.post("/ai/scale-advice", response_model=GeminiScaleAdviceResponse)
+async def ai_scale_advice(payload: GeminiScaleAdviceRequest = Body(...)):
+    """Generate a single autoscaling recommendation using Gemini with safe fallback."""
+    try:
+        advice = request_gemini_scale_advice(payload)
+        log_scale_advice_event(
+            request_payload=payload.model_dump(),
+            response_payload=advice.model_dump(),
+            source="ai_scale_advice",
+        )
+        return advice
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/ai/scale-advice/events")
+async def ai_scale_advice_events(limit: int = 20):
+    """Fetch recent recommendation events from Firestore when enabled."""
+    safe_limit = max(1, min(limit, 100))
+    return {
+        "firestore_logging_enabled": firestore_logging_enabled(),
+        "count": safe_limit,
+        "events": fetch_recent_scale_advice_events(limit=safe_limit),
+    }
 
 def main(host: str = "0.0.0.0", port: int = 8000):
     import uvicorn

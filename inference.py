@@ -1,10 +1,16 @@
 """
 Inference script for CloudScaleRL / AutoScaleOps OpenEnv.
 
-Required environment variables for LLM:
+Provider option A (default, OpenAI-compatible):
+- LLM_PROVIDER=openai_compat
 - API_BASE_URL: OpenAI-compatible LLM endpoint
 - MODEL_NAME: model identifier
 - HF_TOKEN: API key
+
+Provider option B (Google Gemini):
+- LLM_PROVIDER=gemini
+- GOOGLE_API_KEY: Gemini API key
+- GEMINI_MODEL: model identifier (default: gemini-2.5-flash)
 
 Optional:
 - LOCAL_IMAGE_NAME: local Docker image name used by from_docker_image()
@@ -23,6 +29,7 @@ import os
 import re
 from typing import Any
 
+import requests
 from openai import OpenAI
 
 from client import CloudScaleEnv
@@ -33,6 +40,9 @@ LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME", "")
 API_KEY = os.getenv("HF_TOKEN")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai_compat").strip().lower()
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 BENCHMARK_URL = os.getenv("BENCHMARK_URL", "http://localhost:8000")
 BENCHMARK = os.getenv("BENCHMARK", "cloudscale_rl")
@@ -48,6 +58,12 @@ SYSTEM_PROMPT = (
     "Positive values add pods, negative values remove pods, 0 holds steady. "
     "Prefer scaling up early when latency or queue pressure rises, "
     "scale down conservatively when CPU is low, and avoid oscillating."
+)
+
+GEMINI_SYSTEM_PROMPT = (
+    "You are a cloud autoscaling SRE assistant. "
+    "Return JSON only with keys: scale_delta and rationale. "
+    "scale_delta must be one of -2, -1, 0, 1, 2."
 )
 
 
@@ -188,25 +204,59 @@ def observation_signature(obs: dict[str, Any]) -> tuple:
 
 
 def choose_action_with_llm(
-    client: OpenAI, step: int, obs: dict[str, Any], rewards: list[float]
+    client: OpenAI | None, step: int, obs: dict[str, Any], rewards: list[float]
 ) -> tuple[dict[str, Any], bool]:
     prompt = build_user_prompt(step, obs, rewards)
     try:
-        completion = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=TEMPERATURE,
-            max_tokens=MAX_TOKENS,
-            stream=False,
-        )
-        content = (completion.choices[0].message.content or "").strip()
+        if LLM_PROVIDER == "gemini":
+            content = query_gemini(prompt)
+        else:
+            if client is None:
+                raise RuntimeError("OpenAI-compatible client is not configured")
+            completion = client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=TEMPERATURE,
+                max_tokens=MAX_TOKENS,
+                stream=False,
+            )
+            content = (completion.choices[0].message.content or "").strip()
         action = parse_action(content)
         return action, False
     except Exception:
         return choose_fallback_action(obs), True
+
+
+def query_gemini(prompt: str) -> str:
+    if not GOOGLE_API_KEY:
+        raise RuntimeError("GOOGLE_API_KEY is required when LLM_PROVIDER=gemini")
+
+    endpoint = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+        f"?key={GOOGLE_API_KEY}"
+    )
+    body = {
+        "systemInstruction": {"parts": [{"text": GEMINI_SYSTEM_PROMPT}]},
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": TEMPERATURE,
+            "maxOutputTokens": MAX_TOKENS,
+            "responseMimeType": "application/json",
+        },
+    }
+
+    response = requests.post(endpoint, json=body, timeout=25)
+    response.raise_for_status()
+    data = response.json()
+    return (
+        data.get("candidates", [{}])[0]
+        .get("content", {})
+        .get("parts", [{}])[0]
+        .get("text", "")
+    )
 
 
 def choose_fallback_action(obs: dict[str, Any]) -> dict[str, Any]:
@@ -285,7 +335,7 @@ def compute_score(obs: dict[str, Any]) -> float:
 # ---------------------------------------------------------------------------
 
 
-def run_task(client: OpenAI, task_name: str) -> None:
+def run_task(client: OpenAI | None, task_name: str) -> None:
     rewards: list[float] = []
     recent_action_counts: dict[tuple, int] = {}
     prev_sig: tuple | None = None
@@ -382,10 +432,15 @@ def run_task(client: OpenAI, task_name: str) -> None:
 
 
 def main() -> None:
-    if os.getenv("HF_TOKEN") is None:
-        raise ValueError("HF_TOKEN environment variable is required")
+    if LLM_PROVIDER == "gemini":
+        if os.getenv("GOOGLE_API_KEY") is None:
+            raise ValueError("GOOGLE_API_KEY environment variable is required")
+        client = None
+    else:
+        if os.getenv("HF_TOKEN") is None:
+            raise ValueError("HF_TOKEN environment variable is required")
+        client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
-    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
     for task_name in TASKS:
         run_task(client, task_name)
 

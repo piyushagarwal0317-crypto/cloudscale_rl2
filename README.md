@@ -1,8 +1,8 @@
 ---
-title: OpenEnv Cloud Autoscaling Environment Server
+title: AutoScaleOps AI Prototype
 emoji: ☁️
 colorFrom: blue
-colorTo: purple
+colorTo: green
 sdk: docker
 pinned: false
 app_port: 8000
@@ -12,203 +12,205 @@ tags:
   - cloud
   - autoscaling
   - reinforcement-learning
-  - llm
-  - sre
+  - gemini
+  - google-ai
 ---
 
-# CloudScaleRL / AutoScaleOps
-**OpenEnv Cloud Autoscaling Environment Server**
+# AutoScaleOps AI Prototype (Google Solution Guide 2026 Aligned)
 
-A real-world inspired cloud autoscaling simulation for reinforcement learning and LLM-based decision-making, built for OpenEnv and the Meta PyTorch OpenEnv Hackathon.
+AutoScaleOps is a cloud autoscaling simulator where an AI agent acts like an SRE and recommends scale actions (`-2` to `+2` pods) from live infrastructure signals.
 
----
+This repo now includes:
+- OpenEnv environment + grader (your original hackathon core)
+- Gemini-powered autoscaling advisor endpoint
+- Minimal web prototype for demo/submission
+- Firestore event logging for production demo evidence
 
-# 🧠 What is CloudScaleRL / AutoScaleOps?
+## 1) Problem Statement (Locked)
 
-CloudScaleRL (AutoScaleOps) is a reinforcement learning environment that simulates real-world cloud autoscaling decisions, where an agent acts like a **Site Reliability Engineer (SRE)** managing infrastructure under uncertainty.
+Cloud teams struggle to make fast, consistent autoscaling decisions during bursty traffic. Manual decisions often cause SLA violations or overspending.
 
-The environment models operational tradeoffs with:
-- stochastic incoming traffic 📈
-- delayed scaling effects ⏳
-- queue growth under overload 📦
-- latency vs cost penalties 💸
-- stability and oscillation constraints ⚠️
+Target user and use case:
+- User: SRE or platform engineer operating a latency-sensitive service.
+- Use case: Input current system metrics and receive one AI recommendation to scale up/down/hold with rationale.
 
-The objective is to maximize service quality while minimizing cloud spend and system instability.
+## 2) Scope (Cut Aggressively)
 
----
+Prototype scope is intentionally small:
+- Feature 1: User enters infrastructure snapshot (CPU, latency, queue, pods).
+- Feature 2: AI returns one scaling action (`scale_delta`) and rationale.
+- Feature 3: Same logic can be tested against OpenEnv tasks (`easy`, `medium`, `hard`).
 
-# 🚀 Quick Start
+Not in scope:
+- Multi-agent orchestration
+- Full production alerting/on-call workflow
+- Advanced dashboard analytics
 
-## Run the server
+## 3) Core AI Logic (Input -> AI -> Output)
+
+Flow:
+1. User submits current autoscaling state.
+2. Backend sends structured prompt to Gemini (`generateContent`).
+3. Gemini returns JSON with `scale_delta` and `rationale`.
+4. If Gemini is unavailable, deterministic heuristic fallback is used.
+5. UI displays final recommendation.
+
+## 4) Test and Improve
+
+Recommended prompt tests:
+- High pressure case: high latency + long queue should return `+1` or `+2`.
+- Low load case: low CPU + empty queue should return `-1`.
+- Stable case: moderate metrics should return `0`.
+
+Edge-case strategy used in code:
+- Strict JSON extraction and clamping to valid action range.
+- Safe fallback when external model/API fails.
+
+## 5) Build and Run Prototype
+
+### Backend
 ```bash
 uv sync
 uv run python -m server.app
 ```
 
-## Run baseline evaluation
-In another terminal:
+Backend endpoints:
+- `POST /ai/scale-advice` -> Gemini/heuristic autoscaling recommendation
+- `GET /ai/scale-advice/events` -> recent logged recommendations (Firestore)
+- `POST /reset`, `POST /step` -> OpenEnv simulation APIs
+- `POST /grader` -> deterministic scoring
+
+### Frontend
+Open the prototype folder with any static server:
 ```bash
-uv run python scripts/run_baseline.py --url http://localhost:8000 --task easy --policy performance
+cd prototype
+python3 -m http.server 4173
+```
+Then open `http://localhost:4173` in your browser.
+
+In the UI:
+- Set Backend URL to `http://localhost:8000`
+- Enter metrics
+- Click **Get Scaling Advice**
+
+### Environment Variables
+Copy `.env.example` to `.env` and fill values.
+
+## 6) Make It Presentable (Submission Checklist)
+
+What to submit:
+- Working prototype video (60-120s)
+- Problem statement + why it matters
+- One meaningful AI feature demo (`/ai/scale-advice`)
+- Clear architecture explanation
+
+Suggested demo script:
+1. Show input metrics for a traffic spike.
+2. Click recommendation and show `scale_delta` with rationale.
+3. Change to low-load metrics and show scale-down behavior.
+4. Mention fallback safety behavior.
+
+## Google AI + Firebase Path
+
+This project is currently Python backend + static frontend.
+
+For Solution Challenge style hosting, deploy the frontend on Firebase Hosting and point it to a deployed API (Cloud Run or similar). The `prototype/` folder is ready for this flow.
+
+### One-Command Deploy Path
+
+1. Run preflight:
+```bash
+./scripts/preflight_google_submission.sh
 ```
 
-## Run tests
+2. Deploy API:
+```bash
+export GOOGLE_API_KEY="<google_api_key>"
+./scripts/deploy_cloud_run.sh <gcp_project_id> us-central1 autoscaleops-api gemini-api-key
+```
+
+The deploy script configures Secret Manager by default and mounts `GOOGLE_API_KEY` securely into Cloud Run.
+
+3. Deploy UI:
+```bash
+./scripts/deploy_firebase.sh <firebase_project_id> <cloud_run_url>
+```
+
+After this, your hosted frontend calls your hosted backend automatically via `prototype/config.js`.
+You can demo both pages:
+- advisor: `/index.html`
+- logged events feed: `/events.html`
+
+## Submission Docs Pack
+
+- `docs/SUBMISSION_GUIDE_GOOGLE_2026.md` - exact submit flow
+- `docs/ARCHITECTURE.md` - architecture and component explanation
+- `docs/DEMO_SCRIPT.md` - 90-second demo script
+- `docs/JUDGING_CHECKLIST.md` - final self-review before submit
+
+## Inference (OpenEnv Benchmark)
+
+The evaluator script supports two providers:
+
+### OpenAI-compatible
+```bash
+export LLM_PROVIDER=openai_compat
+export API_BASE_URL="https://router.huggingface.co/v1"
+export MODEL_NAME="Qwen/Qwen2.5-72B-Instruct"
+export HF_TOKEN="<token>"
+export BENCHMARK_URL="http://localhost:8000"
+uv run python inference.py
+```
+
+### Gemini
+```bash
+export LLM_PROVIDER=gemini
+export GOOGLE_API_KEY="<google_api_key>"
+export GEMINI_MODEL="gemini-2.5-flash"
+export BENCHMARK_URL="http://localhost:8000"
+uv run python inference.py
+```
+
+## Tests
 ```bash
 uv sync --dev
 uv run pytest tests/ -v
 ```
 
----
-
-# 📊 Task Descriptions and Difficulty
-
-All tasks use fixed seeds for deterministic evaluation.
-
-| Task   | Description                              | Initial Pods | Horizon | Latency SLA | Difficulty |
-|--------|------------------------------------------|-------------:|--------:|------------:|-----------|
-| easy   | Stable traffic, relaxed constraints      | 3            | 180     | 250 ms      | Intro / low volatility |
-| medium | Bursty demand, tighter latency target    | 4            | 240     | 180 ms      | Moderate operational pressure |
-| hard   | Adversarial spikes, delayed consequences | 4            | 300     | 120 ms      | High volatility and strong tradeoffs |
-
----
-
-# 🎮 Action Space Definition
-
-**Action type:** `CloudScaleAction`
-
-The agent controls autoscaling through a discrete scaling delta.
-
-| Field       | Type    | Description |
-|------------|---------|-------------|
-| scale_delta | integer | Number of pods to add/remove; one of `[-2, -1, 0, 1, 2]` |
-
-- `-2` → remove 2 pods (aggressive scale-down)
-- `-1` → remove 1 pod (conservative scale-down)
-- `0` → maintain current scale
-- `1` → add 1 pod (conservative scale-up)
-- `2` → add 2 pods (aggressive scale-up)
-
----
-
-# 👀 Observation Space Definition
-
-**Observation type:** `CloudScaleObservation`
-
-Includes complete infrastructure state and KPI counters:
-- **time_step / horizon**
-- **cpu_utilization**: Aggregate CPU load (0.0-1.0)
-- **latency_ms**: Current average request latency
-- **request_rate**: Real-time incoming traffic
-- **queue_length**: Current backlog of unprocessed requests
-- **active_pods**: Number of pods serving traffic now
-- **pending_scale_ups/downs**: Count of in-flight scaling events
-- **totals**: processed, dropped, and SLA violations
-- **average_latency_ms**: Cumulative performance metric
-- **reward**: current step reward and cumulative reward
-
----
-
-# 🏆 Reward Design
-
-Dense reward is applied every step to encourage efficiency and reliability:
-- **SLA Compliance**: Bonus for latency <= target, penalty for exceeding it.
-- **Cost Efficiency**: Penalty proportional to the number of active pods.
-- **Queue Control**: Linear penalty for backlog growth.
-- **Stability**: Penalty for frequent or large scaling actions.
-- **Invalid Action**: Fixed penalty for attempting to scale below 1 pod.
-
----
-
-# 📏 Grader
-
-`/grader` returns a deterministic score in `[0, 1]` based on:
-- **SLA Compliance**: Percentage of steps within latency target.
-- **Efficiency**: Normalized pod usage vs. capacity.
-- **Service Quality**: Penalty for dropped requests.
-- **Response Speed**: Reward for lower average latency.
-
----
-
-# 📈 Baseline Scores (Policy Benchmarks)
-
-| Task   | Policy      | Score | SLA Compliance | Avg Latency | Avg Pods |
-|--------|-------------|------:|---------------:|------------:|---------:|
-| easy   | threshold   | 0.82  | 98.2%          | 145 ms      | 3.6      |
-| easy   | performance | 0.88  | 99.5%          | 130 ms      | 3.9      |
-| medium | threshold   | 0.74  | 91.3%          | 182 ms      | 4.7      |
-| medium | performance | 0.84  | 96.1%          | 160 ms      | 4.9      |
-| hard   | threshold   | 0.61  | 74.5%          | 215 ms      | 5.2      |
-| hard   | performance | 0.76  | 86.8%          | 178 ms      | 5.8      |
-
----
-
-# 🤖 LLM Inference Results (Example Runs)
-
-Using `inference.py` with `gpt-4o`:
-
-| Task   | Horizon | Steps | Done | Score |
-|--------|--------:|------:|------|------:|
-| easy   | 180     | 180   | true | 0.91  |
-| medium | 240     | 240   | true | 0.85  |
-| hard   | 300     | 300   | true | 0.74  |
-
----
-
-# 🧠 Inference Script (Submission Path)
-
-Root `inference.py` is the script used by evaluators.
-
-- Uses OpenAI-compatible client
-- Emits strict logs: `[START]`, `[STEP]`, `[END]`
-- Required variables: `API_BASE_URL`, `MODEL_NAME`, `HF_TOKEN`
-- Optional variables: `BENCHMARK_URL`, `MAX_STEPS`
-
-## Reproduce Inference Runs
-```bash
-export API_BASE_URL="<open_ai_compat_url>"
-export MODEL_NAME="<model_name>"
-export HF_TOKEN="<your_key>"
-export BENCHMARK_URL="http://localhost:8000"
-uv run python inference.py
-```
-
----
-
-# 🗂️ Project Structure
+## Project Structure
 
 ```text
-cloudscale_rl/
+.
 ├── README.md
-├── openenv.yaml
-├── pyproject.toml
-├── inference.py         # LLM SRE Agent
-├── client.py            # OpenEnv Client
-├── models.py            # Pydantic Schemas
-├── decision.py          # Baseline Policies
-├── scripts/
-│   └── run_baseline.py  # Local Tester
+├── inference.py
+├── client.py
+├── models.py
 ├── server/
-│   ├── app.py           # FastAPI Server
-│   ├── cloudscale_rl_environment.py  # Core Simulation
-│   ├── grader.py        # Scoring Logic
-│   └── __init__.py
-└── tests/               # Unit and Integration Tests
+│   ├── app.py
+│   ├── gemini_advisor.py
+│   ├── event_logger.py
+│   ├── cloudscale_rl_environment.py
+│   └── grader.py
+├── prototype/
+│   ├── index.html
+│   ├── styles.css
+│   ├── config.js
+│   └── app.js
+├── scripts/
+│   ├── deploy_cloud_run.sh
+│   ├── deploy_firebase.sh
+│   └── preflight_google_submission.sh
+├── docs/
+│   ├── SUBMISSION_GUIDE_GOOGLE_2026.md
+│   ├── ARCHITECTURE.md
+│   ├── DEMO_SCRIPT.md
+│   └── JUDGING_CHECKLIST.md
+└── tests/
 ```
 
----
+## Why This Is Submission-Ready
 
-# 🧑‍⚖️ How A Judge Will Run This
-
-1. Start Environment: `uv run python -m server.app`.
-2. Set Environment Variables (`API_BASE_URL`, etc).
-3. Run Inference: `uv run python inference.py`.
-4. Parse `[END]` logs for final scores.
-
----
-
-# ☁️ Hugging Face Spaces
-
-Deploy using `openenv push`. After deployment, the following standard OpenEnv routes will be available:
-- `POST /reset`
-- `POST /step`
-- `/tasks`, `/grader`, `/baseline`
+- Small but real working prototype
+- One clear AI capability with user-facing output
+- Fast to demo and easy to improve iteratively
+- Keeps your original OpenEnv hackathon core intact

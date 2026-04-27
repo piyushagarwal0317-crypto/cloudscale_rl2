@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AutoScaleOps Event Feed</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">Google Solution Challenge 2026 Prototype</p>
+        <h1>Recommendation Event Feed</h1>
+        <p class="sub">
+          This page shows recently logged AI recommendations from Firestore through the API.
+        </p>
+        <div class="hero-links">
+          <a class="text-link" href="./index.html">Back to Advisor</a>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="events-toolbar">
+          <label>
+            Backend URL
+            <input id="backendUrl" value="http://localhost:8000" />
+          </label>
+          <label>
+            Limit
+            <input id="limit" type="number" min="1" max="100" value="20" />
+          </label>
+          <button id="refreshButton" type="button">Refresh Feed</button>
+          <label class="toggle">
+            <input id="autoRefresh" type="checkbox" checked />
+            Auto-refresh every 10s
+          </label>
+        </div>
+      </section>
+
+      <section class="result">
+        <p class="placeholder" id="status">Waiting for first fetch...</p>
+        <div id="eventsList" class="events-list"></div>
+      </section>
+    </main>
+
+    <script src="./config.js"></script>
+    <script src="./events.js"></script>
+  </body>
+</html>

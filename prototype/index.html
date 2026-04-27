@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AutoScaleOps AI Prototype</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">Google Solution Challenge 2026 Prototype</p>
+        <h1>AutoScaleOps AI Copilot</h1>
+        <p class="sub">
+          Enter a live infrastructure snapshot and get one Gemini-powered scaling action.
+          This proves the core idea: faster, consistent autoscaling decisions.
+        </p>
+        <div class="hero-links">
+          <a class="text-link" href="./events.html">Open Live Event Feed</a>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="grid">
+          <label>
+            Backend URL
+            <input id="backendUrl" value="http://localhost:8000" />
+          </label>
+          <label>
+            Task
+            <select id="taskId">
+              <option value="easy">easy</option>
+              <option value="medium" selected>medium</option>
+              <option value="hard">hard</option>
+            </select>
+          </label>
+          <label>
+            CPU Utilization (0-1)
+            <input id="cpu" type="number" min="0" max="1" step="0.01" value="0.82" />
+          </label>
+          <label>
+            Latency (ms)
+            <input id="latency" type="number" min="0" step="1" value="178" />
+          </label>
+          <label>
+            Queue Length
+            <input id="queue" type="number" min="0" step="1" value="640" />
+          </label>
+          <label>
+            Active Pods
+            <input id="pods" type="number" min="1" step="1" value="4" />
+          </label>
+          <label>
+            Pending Scale Ups
+            <input id="pendingUps" type="number" min="0" step="1" value="0" />
+          </label>
+          <label>
+            Pending Scale Downs
+            <input id="pendingDowns" type="number" min="0" step="1" value="0" />
+          </label>
+          <label>
+            Request Rate
+            <input id="rate" type="number" min="0" step="1" value="410" />
+          </label>
+          <label>
+            Avg Latency (ms)
+            <input id="avgLatency" type="number" min="0" step="1" value="170" />
+          </label>
+          <label>
+            Total SLA Violations
+            <input id="violations" type="number" min="0" step="1" value="7" />
+          </label>
+          <label>
+            Total Dropped Requests
+            <input id="dropped" type="number" min="0" step="1" value="4" />
+          </label>
+        </div>
+        <button id="runButton" type="button">Get Scaling Advice</button>
+      </section>
+
+      <section class="result" id="result">
+        <p class="placeholder">No recommendation yet.</p>
+      </section>
+    </main>
+
+    <script src="./config.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
